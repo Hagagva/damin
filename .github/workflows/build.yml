@@ -13,30 +13,21 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Inspect app/build.gradle & Install SDK/NDK
+      - name: Prepare SDK and Local Properties
         run: |
-          head -n 30 app/build.gradle
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          NDK_VER=$(grep -oP 'ndkVersion\s+["\x27]\K[^"\x27]+' app/build.gradle || echo "25.2.9519653")
-          SDK_VER=$(grep -oP 'compileSdk(Version)?\s+\K[0-9]+' app/build.gradle || echo "34")
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-$SDK_VER" "ndk;$NDK_VER" "cmake;3.22.1"
-
-      - name: Setup root Gradle if missing
-        run: |
-          if [ ! -f "settings.gradle" ] && [ ! -f "settings.gradle.kts" ]; then
-            printf 'pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositories { google(); mavenCentral() } }\nrootProject.name = "Winlator"\ninclude ":app"\n' > settings.gradle
-          fi
-          if [ ! -f "build.gradle" ] && [ ! -f "build.gradle.kts" ]; then
-            printf 'plugins { id "com.android.application" version "8.1.4" apply false }\n' > build.gradle
-          fi
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "sdk.dir=$ANDROID_HOME" > app/local.properties
+          ls -la app/
 
       - name: Build APK
         run: |
           if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew && ./gradlew assembleDebug --stacktrace
+            chmod +x ./gradlew && ./gradlew assembleDebug --no-daemon
+          elif [ -f "app/gradlew" ]; then
+            cd app && chmod +x ./gradlew && ./gradlew assembleDebug --no-daemon
           else
-            gradle assembleDebug --stacktrace
+            gradle assembleDebug --no-daemon
           fi
 
       - uses: actions/upload-artifact@v4
