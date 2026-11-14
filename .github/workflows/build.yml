@@ -8,78 +8,27 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Check app contents
-        run: find ./app -maxdepth 4
-
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle files if missing
+      - name: Inspect app/build.gradle & Install SDK/NDK
         run: |
+          head -n 30 app/build.gradle
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          NDK_VER=$(grep -oP 'ndkVersion\s+["\x27]\K[^"\x27]+' app/build.gradle || echo "25.2.9519653")
+          SDK_VER=$(grep -oP 'compileSdk(Version)?\s+\K[0-9]+' app/build.gradle || echo "34")
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-$SDK_VER" "ndk;$NDK_VER" "cmake;3.22.1"
+
+      - name: Setup root Gradle if missing
+        run: |
           if [ ! -f "settings.gradle" ] && [ ! -f "settings.gradle.kts" ]; then
-            cat << 'EOF' > settings.gradle
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          rootProject.name = "Winlator"
-          include ':app'
-          EOF
+            printf 'pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositories { google(); mavenCentral() } }\nrootProject.name = "Winlator"\ninclude ":app"\n' > settings.gradle
           fi
           if [ ! -f "build.gradle" ] && [ ! -f "build.gradle.kts" ]; then
-            cat << 'EOF' > build.gradle
-          plugins {
-              id 'com.android.application' version '8.1.4' apply false
-          }
-          EOF
-          fi
-          if [ ! -f "app/build.gradle" ] && [ ! -f "app/build.gradle.kts" ]; then
-            cat << 'EOF' > app/build.gradle
-          plugins {
-              id 'com.android.application'
-          }
-          android {
-              namespace 'com.winlator'
-              compileSdk 34
-              defaultConfig {
-                  applicationId "com.winlator"
-                  minSdk 26
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-                  ndk {
-                      abiFilters 'arm64-v8a'
-                  }
-              }
-              buildTypes {
-                  debug {
-                      minifyEnabled false
-                  }
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'com.google.android.material:material:1.10.0'
-              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-          }
-          EOF
+            printf 'plugins { id "com.android.application" version "8.1.4" apply false }\n' > build.gradle
           fi
 
       - name: Build APK
